@@ -6,3 +6,143 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+enum UserRole {
+  ADMIN
+  SCOLARITE
+  PROFESSEUR
+  ETUDIANT
+}
+
+enum ExamStatus {
+  PLANNED
+  CONFIRMED
+  CANCELLED
+}
+
+enum SessionType {
+  NORMALE
+  RATTRAPAGE
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  fullName     String
+  role         UserRole
+  createdAt    DateTime @default(now())
+
+  examsAsProf Exam[]           @relation("ProfessorExams")
+  groups      StudentGroup[]
+  notifications Notification[]
+
+  @@map("users")
+}
+
+model Room {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  building  String?
+  capacity  Int
+  isActive  Boolean  @default(true)
+
+  exams Exam[]
+
+  @@map("rooms")
+}
+
+model Filiere {
+  id    String @id @default(uuid())
+  name  String
+  level String
+
+  groups  Group[]
+  modules Module[]
+
+  @@unique([name, level])
+  @@map("filieres")
+}
+
+model Group {
+  id           String @id @default(uuid())
+  filiereId    String
+  name         String
+  studentCount Int
+
+  filiere Filiere        @relation(fields: [filiereId], references: [id])
+  students StudentGroup[]
+  exams    ExamGroup[]
+
+  @@unique([filiereId, name])
+  @@map("groups")
+}
+
+model StudentGroup {
+  userId  String
+  groupId String
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@id([userId, groupId])
+  @@map("student_groups")
+}
+
+model Module {
+  id        String @id @default(uuid())
+  code      String @unique
+  name      String
+  filiereId String
+
+  filiere Filiere @relation(fields: [filiereId], references: [id])
+  exams   Exam[]
+
+  @@map("modules")
+}
+
+model Exam {
+  id           String      @id @default(uuid())
+  moduleId     String
+  sessionType  SessionType @default(NORMALE)
+  roomId       String
+  professorId  String
+  startsAt     DateTime
+  endsAt       DateTime
+  status       ExamStatus  @default(PLANNED)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  module    Module      @relation(fields: [moduleId], references: [id])
+  room      Room        @relation(fields: [roomId], references: [id])
+  professor User        @relation("ProfessorExams", fields: [professorId], references: [id])
+  groups    ExamGroup[]
+
+  @@map("exams")
+}
+
+model ExamGroup {
+  examId  String
+  groupId String
+
+  exam  Exam  @relation(fields: [examId], references: [id], onDelete: Cascade)
+  group Group @relation(fields: [groupId], references: [id])
+
+  @@id([examId, groupId])
+  @@map("exam_groups")
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    String
+  examId    String?
+  message   String
+  channel   String   @default("in_app")
+  sentAt    DateTime?
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
